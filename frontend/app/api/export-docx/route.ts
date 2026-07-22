@@ -8,8 +8,7 @@ export async function POST(req: NextRequest) {
   const response = await fetch(`${AI_SERVER_URL}/api/v1/export-docx`, {
     method: "POST",
     headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
   });
