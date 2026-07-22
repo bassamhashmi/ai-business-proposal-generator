@@ -49,39 +49,58 @@ export default function ProposalForm() {
 
   return (
     <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-2xl font-bold mb-6">
+      <h1 className="text-3xl font-semibold text-white mb-2">
         AI Business Proposal Generator
       </h1>
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-gray-400 mb-8">
+        Fill in the details below to generate a professional proposal
+      </p>
+      <form onSubmit={handleSubmit} className="space-y-5">
         {FIELDS.map((key) => (
-          <input
-            key={key}
-            name={key}
-            placeholder={key.replace(/_/g, " ")}
-            value={form[key]}
-            onChange={handleChange}
-            className="w-full border p-2 rounded"
-          />
+          <div key={key}>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5 capitalize">
+              {key.replace(/_/g, " ")}
+            </label>
+            <input
+              name={key}
+              placeholder={`Enter ${key.replace(/_/g, " ")}`}
+              value={form[key]}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            />
+          </div>
         ))}
         <button
           type="submit"
           disabled={loading}
-          className="bg-black text-white px-4 py-2 rounded"
+          className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Generating..." : "Generate Proposal"}
         </button>
       </form>
 
-      {error && <p className="text-red-600 mt-4">{error}</p>}
+      {error && (
+        <p className="mt-6 text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3">
+          {error}
+        </p>
+      )}
 
       {result && (
-        <div className="mt-6 space-y-4">
+        <div className="mt-8 space-y-5">
+          <h2 className="text-xl font-semibold text-white">
+            Generated Proposal
+          </h2>
           {Object.entries(result).map(([section, text]) => (
-            <div key={section} className="border p-4 rounded bg-gray-50">
-              <h2 className="font-semibold capitalize mb-2">
+            <div
+              key={section}
+              className="border border-gray-700 rounded-lg p-5 bg-gray-800 shadow-sm"
+            >
+              <h3 className="font-semibold text-white mb-3 capitalize">
                 {section.replace(/_/g, " ")}
-              </h2>
-              <p className="whitespace-pre-wrap">{text}</p>
+              </h3>
+              <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                {text}
+              </p>
             </div>
           ))}
         </div>

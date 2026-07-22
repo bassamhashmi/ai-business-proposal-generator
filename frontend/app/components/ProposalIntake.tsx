@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { exportDocument } from "@/lib/api-client";
 
 type ExtractedFields = {
   business_name: string;
@@ -82,86 +83,150 @@ export default function ProposalIntake() {
   if (step === "intake") {
     return (
       <div className="max-w-2xl mx-auto p-8">
-        <h1 className="text-2xl font-bold mb-6">
+        <h1 className="text-3xl font-semibold text-white mb-2">
           AI Business Proposal Generator
         </h1>
-        <form onSubmit={handleExtract} className="space-y-3">
-          <input
-            placeholder="Company name"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            className="w-full border p-2 rounded"
-            required
-          />
-          <textarea
-            placeholder="Paste requirements as free text (or upload a file below instead)"
-            value={freeText}
-            onChange={(e) => setFreeText(e.target.value)}
-            className="w-full border p-2 rounded h-32"
-            disabled={!!file}
-          />
-          <div className="text-sm text-gray-500">— or —</div>
-          <input
-            type="file"
-            accept=".pdf,.docx"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
+        <p className="text-gray-400 mb-8">
+          Upload a document or paste requirements to extract proposal details
+        </p>
+        <form onSubmit={handleExtract} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Company name
+            </label>
+            <input
+              placeholder="Enter company name"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Requirements
+            </label>
+            <textarea
+              placeholder="Paste requirements as free text (or upload a file below instead)"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 h-32 resize-none"
+              disabled={!!file}
+            />
+          </div>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-700" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-gray-900 text-gray-400">or</span>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">
+              Upload document
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.docx"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="w-full px-4 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-gray-700 file:text-white hover:file:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            />
+          </div>
           <button
             type="submit"
             disabled={loading || !companyName || (!freeText && !file)}
-            className="bg-black text-white px-4 py-2 rounded"
+            className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Extracting..." : "Extract Details"}
           </button>
         </form>
-        {error && <p className="text-red-600 mt-4">{error}</p>}
+        {error && (
+          <p className="mt-6 text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3">
+            {error}
+          </p>
+        )}
       </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-2xl font-bold mb-6">Review Extracted Details</h1>
-      <p className="text-sm text-gray-500 mb-4">
-        Confirm or correct before generating — extraction won&apos;t always be
-        perfect.
+      <h1 className="text-3xl font-semibold text-white mb-2">
+        Review Extracted Details
+      </h1>
+      <p className="text-gray-400 mb-8">
+        Confirm or correct the extracted information before generating the
+        proposal
       </p>
-      <div className="space-y-3">
+      <div className="space-y-5">
         {fields &&
           (Object.keys(fields) as (keyof ExtractedFields)[]).map((key) => (
             <div key={key}>
-              <label className="text-sm font-medium capitalize block mb-1">
+              <label className="block text-sm font-medium text-gray-300 mb-1.5 capitalize">
                 {key.replace(/_/g, " ")}
               </label>
               <input
                 value={fields[key]}
                 onChange={(e) => updateField(key, e.target.value)}
-                className="w-full border p-2 rounded"
+                className="w-full px-4 py-2.5 border border-gray-600 rounded-lg bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               />
             </div>
           ))}
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className="bg-black text-white px-4 py-2 rounded"
+          className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Generating..." : "Generate Proposal"}
         </button>
       </div>
 
-      {error && <p className="text-red-600 mt-4">{error}</p>}
+      {error && (
+        <p className="mt-6 text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-4 py-3">
+          {error}
+        </p>
+      )}
 
       {result && (
-        <div className="mt-6 space-y-4">
-          {Object.entries(result).map(([section, text]) => (
-            <div key={section} className="border p-4 rounded bg-gray-50">
-              <h2 className="font-semibold capitalize mb-2">
-                {section.replace(/_/g, " ")}
-              </h2>
-              <p className="whitespace-pre-wrap">{text}</p>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={() =>
+                exportDocument("pdf", fields!.business_name, result)
+              }
+              className="flex-1 border border-gray-600 text-gray-300 px-4 py-2.5 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
+            >
+              Download PDF
+            </button>
+            <button
+              onClick={() =>
+                exportDocument("docx", fields!.business_name, result)
+              }
+              className="flex-1 border border-gray-600 text-gray-300 px-4 py-2.5 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
+            >
+              Download DOCX
+            </button>
+          </div>
+          <div className="mt-8 space-y-5">
+            <h2 className="text-xl font-semibold text-white">
+              Generated Proposal
+            </h2>
+            {Object.entries(result).map(([section, text]) => (
+              <div
+                key={section}
+                className="border border-gray-700 rounded-lg p-5 bg-gray-800 shadow-sm"
+              >
+                <h3 className="font-semibold text-white mb-3 capitalize">
+                  {section.replace(/_/g, " ")}
+                </h3>
+                <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                  {text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
