@@ -1,5 +1,5 @@
-import ProposalForm from "@/components/ProposalForm";
+import ProposalIntake from "@/components/ProposalIntake";
 
 export default function Home() {
-  return <ProposalForm />;
+  return <ProposalIntake />;
 }
