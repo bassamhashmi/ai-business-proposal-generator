@@ -1,55 +1,57 @@
+import json
+from pathlib import Path
 from app.db.session import SessionLocal
-from app.db.models import PastProposal
+from app.db.models import PastProposal, ProposalChunk
 from app.services.embedding_service import embed_text
+from app.services.pdf_service import extract_text_from_pdf
+from app.services.chunking_service import chunk_text
 from app.db.init_db import init_db
 
-SAMPLE_PROPOSALS = [
-    {
-        "business_name": "Riverside Bakery",
-        "industry": "Food & Beverage",
-        "service_offered": "Online ordering system",
-        "content": (
-            "We proposed a custom online ordering platform for Riverside Bakery, "
-            "enabling customers to browse daily inventory, place pickup orders, and pay online. "
-            "The engagement included a 6-week build, POS integration, and staff training, "
-            "priced at a fixed fee with a 3-month post-launch support window."
-        ),
-    },
-    {
-        "business_name": "Clearwater Consulting",
-        "industry": "Professional Services",
-        "service_offered": "CRM implementation",
-        "content": (
-            "For Clearwater Consulting, we implemented a lightweight CRM to replace their "
-            "spreadsheet-based client tracking, including pipeline stages, automated follow-up "
-            "reminders, and reporting dashboards. Delivered over 8 weeks with milestone-based billing."
-        ),
-    },
-    {
-        "business_name": "Bright Path Tutoring",
-        "industry": "Education",
-        "service_offered": "Scheduling and payments platform",
-        "content": (
-            "Bright Path Tutoring needed a self-serve booking system for parents to schedule "
-            "sessions and pay tutors automatically. We built a scheduling engine with conflict "
-            "detection and Stripe-based payments, delivered in 5 weeks with a tiered pricing model "
-            "based on tutor volume."
-        ),
-    },
-]
+DATA_DIR = Path(__file__).parent.parent.parent / "data" / "past_proposals"
 
 def seed():
     init_db()
     db = SessionLocal()
     try:
         if db.query(PastProposal).count() > 0:
-            print("Already seeded, skipping.")
+            print("Already seeded, skipping. Delete rows manually to re-seed.")
             return
-        for item in SAMPLE_PROPOSALS:
-            embedding = embed_text(item["content"])
-            db.add(PastProposal(**item, embedding=embedding))
+
+        manifest = json.loads((DATA_DIR / "manifest.json").read_text())
+
+        for entry in manifest:
+            pdf_path = DATA_DIR / entry["file"]
+            if not pdf_path.exists():
+                print(f"Skipping missing file: {entry['file']}")
+                continue
+
+            full_text = extract_text_from_pdf(str(pdf_path))
+            if not full_text:
+                print(f"No extractable text in {entry['file']}, skipping.")
+                continue
+
+            proposal = PastProposal(
+                business_name=entry["business_name"],
+                industry=entry["industry"],
+                service_offered=entry["service_offered"],
+                source_file=entry["file"],
+            )
+            db.add(proposal)
+            db.flush()  # assigns proposal.id without committing yet
+
+            chunks = chunk_text(full_text)
+            for i, chunk in enumerate(chunks):
+                embedding = embed_text(chunk)
+                db.add(ProposalChunk(
+                    proposal_id=proposal.id,
+                    chunk_index=i,
+                    chunk_text=chunk,
+                    embedding=embedding,
+                ))
+
+            print(f"Seeded '{entry['business_name']}' — {len(chunks)} chunks from {entry['file']}")
+
         db.commit()
-        print(f"Seeded {len(SAMPLE_PROPOSALS)} past proposals.")
     finally:
         db.close()
 

@@ -1,9 +1,9 @@
 from app.schemas.proposal_request import ProposalRequest
-from app.db.models import PastProposal
+from app.db.models import ProposalChunk
 
 SYSTEM_PROMPT = (
     "You are an expert business proposal writer. "
-    "Use the example past proposals provided as style and structure reference, "
+    "Use the example excerpts from past proposals provided as style and structure reference, "
     "but write entirely new content tailored to the current client's specific details. "
     "Generate proposal content strictly matching the requested JSON schema. "
     "Do not include markdown formatting, headers, or field labels inside the text — "
@@ -13,13 +13,13 @@ SYSTEM_PROMPT = (
 def build_retrieval_query(req: ProposalRequest) -> str:
     return f"{req.industry} {req.service_offered} {req.client_pain_points}"
 
-def build_user_prompt(req: ProposalRequest, examples: list[PastProposal]) -> str:
+def build_user_prompt(req: ProposalRequest, chunks: list[ProposalChunk]) -> str:
     examples_block = "\n\n".join(
-        f"Example past proposal ({e.industry} — {e.service_offered}):\n{e.content}"
-        for e in examples
+        f"Excerpt from past proposal ({c.proposal.industry} — {c.proposal.service_offered}):\n{c.chunk_text}"
+        for c in chunks
     ) or "No past examples available."
 
-    return f"""Reference past proposals for style and structure:
+    return f"""Reference excerpts from past proposals for style and structure:
 
 {examples_block}
 
