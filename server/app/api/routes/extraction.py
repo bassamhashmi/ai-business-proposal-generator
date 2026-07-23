@@ -13,7 +13,10 @@ router = APIRouter()
 async def extract_request_route(
     company_name: str = Form(...),
     free_text: Optional[str] = Form(None),
+    company_context: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    research_industry: Optional[str] = Form(None),
+    research_service_offered: Optional[str] = Form(None),
 ):
     source_text = ""
 
@@ -38,7 +41,14 @@ async def extract_request_route(
 
     llm = get_llm_provider()
     try:
-        extracted = await extract_fields(company_name, source_text, llm)
+        extracted = await extract_fields(
+            company_name,
+            source_text,
+            llm,
+            company_context=company_context or "",
+            research_industry=research_industry,
+            research_service_offered=research_service_offered
+        )
     except ExtractionError as e:
         raise HTTPException(status_code=502, detail=str(e))
 

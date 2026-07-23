@@ -8,6 +8,21 @@ export async function POST(req: NextRequest) {
   const forward = new FormData();
   forward.append("company_name", incoming.get("company_name") as string);
 
+  const companyContext = incoming.get("company_context");
+  if (companyContext)
+    forward.append("company_context", companyContext as string);
+
+  const researchIndustry = incoming.get("research_industry");
+  if (researchIndustry)
+    forward.append("research_industry", researchIndustry as string);
+
+  const researchServiceOffered = incoming.get("research_service_offered");
+  if (researchServiceOffered)
+    forward.append(
+      "research_service_offered",
+      researchServiceOffered as string,
+    );
+
   const freeText = incoming.get("free_text");
   if (freeText) forward.append("free_text", freeText as string);
 

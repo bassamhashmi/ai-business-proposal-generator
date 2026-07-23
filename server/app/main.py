@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.api.routes.proposals import router as proposals_router
 from app.api.routes.extraction import router as extraction_router
 from app.api.routes.export import router as export_router
+from app.api.routes.research import router as research_router
 
 app = FastAPI(title="AI Proposal Generator - AI Server")
 
@@ -17,6 +18,7 @@ app.add_middleware(
 app.include_router(proposals_router, prefix="/api/v1")
 app.include_router(extraction_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
+app.include_router(research_router, prefix="/api/v1")
 
 @app.get("/health")
 def health():

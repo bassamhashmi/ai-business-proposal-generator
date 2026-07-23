@@ -11,3 +11,8 @@ class LLMProvider(ABC):
     ) -> dict:
         """Returns a dict matching the given JSON schema."""
         ...
+
+    @abstractmethod
+    async def chat_with_tools(self, messages: list[dict], tools: list[dict], temperature: float = 0.2) -> dict:
+        """Returns the raw assistant message dict, which may include tool_calls."""
+        ...

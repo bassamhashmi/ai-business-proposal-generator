@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from pydantic import ValidationError
 from app.llm.base import LLMProvider
 from app.schemas.extraction_output import ExtractedFields
@@ -7,8 +8,22 @@ from app.prompts.extraction_prompts import EXTRACTION_SYSTEM_PROMPT, build_extra
 class ExtractionError(Exception):
     pass
 
-async def extract_fields(company_name: str, source_text: str, llm: LLMProvider, retries: int = 1) -> ExtractedFields:
-    prompt = build_extraction_prompt(company_name, source_text)
+async def extract_fields(
+    company_name: str,
+    source_text: str,
+    llm: LLMProvider,
+    company_context: str = "",
+    research_industry: Optional[str] = None,
+    research_service_offered: Optional[str] = None,
+    retries: int = 1
+) -> ExtractedFields:
+    prompt = build_extraction_prompt(
+        company_name,
+        source_text,
+        company_context,
+        research_industry=research_industry,
+        research_service_offered=research_service_offered
+    )
     schema = ExtractedFields.model_json_schema()
 
     last_error = None

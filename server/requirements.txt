@@ -14,3 +14,5 @@ python-docx
 python-multipart
 weasyprint
 jinja2
+ddgs
+beautifulsoup4
