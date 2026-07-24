@@ -1,9 +1,14 @@
 import json
+import logging
+import time
 from typing import Optional
 from pydantic import ValidationError
 from app.llm.base import LLMProvider
 from app.schemas.extraction_output import ExtractedFields
 from app.prompts.extraction_prompts import EXTRACTION_SYSTEM_PROMPT, build_extraction_prompt
+from app.core.logging import log_event
+
+logger = logging.getLogger(__name__)
 
 class ExtractionError(Exception):
     pass
@@ -28,10 +33,24 @@ async def extract_fields(
 
     last_error = None
     for attempt in range(retries + 1):
+        started = time.perf_counter()
         try:
             raw = await llm.generate_structured(EXTRACTION_SYSTEM_PROMPT, prompt, schema, temperature=0.1)
+            log_event(
+                logger,
+                "extraction_completed",
+                attempt=attempt + 1,
+                duration_ms=round((time.perf_counter() - started) * 1000),
+            )
             return ExtractedFields(**raw)
         except (json.JSONDecodeError, ValidationError, ValueError) as e:
+            log_event(
+                logger,
+                "extraction_attempt_failed",
+                attempt=attempt + 1,
+                error_type=type(e).__name__,
+                duration_ms=round((time.perf_counter() - started) * 1000),
+            )
             last_error = e
             continue
 

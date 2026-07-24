@@ -1,9 +1,13 @@
 from typing import Optional
+import logging
 from app.llm.base import LLMProvider
 from app.tools.tool_definitions import COMPANY_RESEARCH_TOOLS, TOOL_FUNCTIONS
 from app.services.website_service import fetch_website_text
 from app.prompts.research_prompts import WEBSITE_SUMMARY_SYSTEM_PROMPT, build_website_summary_prompt
 from app.schemas.research_output import ResearchOutput
+from app.core.logging import log_event
+
+logger = logging.getLogger(__name__)
 
 AGENT_SYSTEM_PROMPT = (
     "You are a research assistant gathering background on a business before a proposal is written for them. "
@@ -38,7 +42,13 @@ async def research_company(company_name: str, llm: LLMProvider, max_iterations: 
 async def research_by_website(url: str, llm: LLMProvider) -> dict:
     try:
         website_text = await fetch_website_text(url)
-    except Exception:
+    except Exception as exc:
+        log_event(
+            logger,
+            "website_research_fetch_failed",
+            error_type=type(exc).__name__,
+            error_message=str(exc),
+        )
         return {"business_name": "", "company_context": "Couldn't fetch that website — check the URL or try researching by company name instead."}
 
     if not website_text.strip():

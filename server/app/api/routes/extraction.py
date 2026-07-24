@@ -1,9 +1,13 @@
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from app.services.file_input_service import extract_text_from_upload
+from app.services.file_input_service import (
+    FileInputError,
+    extract_text_from_upload,
+    save_upload_with_limit,
+    validate_document_limits,
+)
 from app.services.extraction_service import extract_fields, ExtractionError
 from app.llm.factory import get_llm_provider
 
@@ -25,10 +29,13 @@ async def extract_request_route(
         if suffix not in (".pdf", ".docx"):
             raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported.")
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            shutil.copyfileobj(file.file, tmp)
             tmp_path = tmp.name
         try:
+            await save_upload_with_limit(file, tmp_path)
+            validate_document_limits(tmp_path, file.filename)
             source_text = extract_text_from_upload(tmp_path, file.filename)
+        except FileInputError as exc:
+            raise HTTPException(status_code=413, detail=str(exc))
         finally:
             Path(tmp_path).unlink(missing_ok=True)
     elif free_text:

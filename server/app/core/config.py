@@ -8,6 +8,15 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/proposal_generator"
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_dim: int = 384
+    max_request_body_bytes: int = 10 * 1024 * 1024
+    max_upload_bytes: int = 8 * 1024 * 1024
+    max_pdf_pages: int = 100
+    max_extracted_text_chars: int = 250_000
+    website_max_response_bytes: int = 8 * 1024 * 1024
+    website_max_redirects: int = 3
+    # Temporary local-development diagnostic. Set to false before handling
+    # sensitive production proposal data.
+    log_llm_responses: bool = True
 
     class Config:
         env_file = ".env"
