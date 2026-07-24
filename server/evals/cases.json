@@ -1,0 +1,26 @@
+[
+  {
+    "id": "mobile_hrms_rfp",
+    "input": {
+      "business_name": "Example HR Technology",
+      "industry": "Information Technology",
+      "service_offered": "Mobile application development",
+      "client_pain_points": "Need a secure cross-platform mobile HRMS integrated with existing systems.",
+      "budget_range": "",
+      "timeline": ""
+    },
+    "expectations": {"required_fields": ["industry", "service_offered", "client_pain_points"], "requires_commercial_acknowledgement": true}
+  },
+  {
+    "id": "marketing_campaign_rfp",
+    "input": {
+      "business_name": "Example Retail Co",
+      "industry": "Retail",
+      "service_offered": "Integrated marketing campaign",
+      "client_pain_points": "Low brand awareness and inconsistent campaign reporting.",
+      "budget_range": "$40,000-$60,000",
+      "timeline": "12 weeks"
+    },
+    "expectations": {"required_fields": ["industry", "service_offered", "client_pain_points", "budget_range", "timeline"], "requires_commercial_acknowledgement": false}
+  }
+]
