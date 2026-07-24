@@ -55,6 +55,9 @@ CLIENT INFORMATION:
 - Budget range: {req.budget_range}
 - Desired timeline: {req.timeline}
 
+APPROVED PROPOSAL STRATEGY:
+{req.strategy or "No additional strategy supplied."}
+
 REQUIREMENTS:
 - Executive summary must open by referencing the client's specific stated pain points, not a generic industry problem.
 - Scope of work must map each deliverable back to a pain point or stated goal above.

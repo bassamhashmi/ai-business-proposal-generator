@@ -6,6 +6,8 @@ from app.db.models import GenerationRun, Job, Proposal, ProposalVersion, Researc
 from app.db.session import SessionLocal
 from app.llm.factory import get_llm_provider
 from app.schemas.proposal_request import ProposalRequest
+from app.schemas.strategy import ProposalOutline, ProposalStrategy
+from app.prompts.strategy_prompts import OUTLINE_SYSTEM_PROMPT, build_outline_prompt
 from app.services.agent_service import research_with_cache
 from app.services.extraction_service import extract_fields
 from app.schemas.extraction_output import brief_to_generation_fields
@@ -179,5 +181,40 @@ async def run_generation_job(job_id: str) -> None:
                 proposal.status = "generation_failed"
             db.commit()
         log_event(logger, "background_job_failed", job_id=job_id, job_type="generation", error_type=type(exc).__name__)
+    finally:
+        db.close()
+
+
+async def run_outline_job(job_id: str) -> None:
+    db = SessionLocal()
+    try:
+        job = db.get(Job, job_id)
+        if not job or job.status == "cancelled":
+            return
+        _set_job_state(job, status="running", stage="planning_outline", started_at=_now())
+        proposal = db.get(Proposal, job.proposal_id)
+        if not proposal:
+            raise ValueError("Proposal not found for outline job.")
+        request = ProposalRequest(proposal_id=proposal.id, **job.input_data["proposal"])
+        strategy = ProposalStrategy(**job.input_data["strategy"])
+        raw = await get_llm_provider("generation").generate_structured(
+            OUTLINE_SYSTEM_PROMPT,
+            build_outline_prompt(request, strategy),
+            ProposalOutline.model_json_schema(),
+            temperature=0.2,
+            num_predict=1200,
+        )
+        outline = ProposalOutline(**raw).model_dump()
+        proposal.input_data = {**(proposal.input_data or {}), "strategy": strategy.model_dump(), "outline": outline}
+        _set_job_state(job, status="completed", stage="completed", result_data=outline, completed_at=_now())
+        db.commit()
+        log_event(logger, "background_job_completed", job_id=job_id, job_type=job.job_type)
+    except Exception as exc:
+        db.rollback()
+        job = db.get(Job, job_id)
+        if job:
+            _fail_job(job, exc)
+            db.commit()
+        log_event(logger, "background_job_failed", job_id=job_id, job_type="outline", error_type=type(exc).__name__)
     finally:
         db.close()

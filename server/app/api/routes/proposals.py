@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.db.models import GenerationRun, Job, Proposal, ProposalVersion, ResearchResult, SourceDocument
 from app.schemas.job import JobResponse
 from app.services.job_service import run_generation_job
+from app.services.job_service import run_outline_job
+from app.schemas.strategy import ProposalStrategy
 from app.schemas.proposal_request import ProposalRequest
 from app.schemas.proposal_draft import (
     ProposalCreate,
@@ -109,6 +111,32 @@ def add_research_result(
     db.commit()
     db.refresh(result)
     return result
+
+
+@router.post("/proposals/{proposal_id}/outline", response_model=JobResponse, status_code=status.HTTP_202_ACCEPTED)
+def create_outline(
+    proposal_id: str,
+    strategy: ProposalStrategy,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    proposal = get_proposal_or_404(proposal_id, db)
+    proposal_fields = {key: value for key, value in proposal.input_data.items() if key in ProposalRequest.model_fields}
+    proposal_fields.setdefault("business_name", proposal.business_name)
+    try:
+        request = ProposalRequest(**proposal_fields)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="Complete the proposal brief before planning an outline.") from exc
+    job = Job(
+        proposal_id=proposal_id,
+        job_type="outline",
+        input_data={"proposal": request.model_dump(exclude={"proposal_id"}), "strategy": strategy.model_dump()},
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    background_tasks.add_task(run_outline_job, job.id)
+    return job
 
 
 @router.post("/generate-proposal")

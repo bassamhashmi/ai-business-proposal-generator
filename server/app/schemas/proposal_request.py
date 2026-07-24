@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 from pydantic import BaseModel
 
 class ProposalRequest(BaseModel):
@@ -9,3 +9,4 @@ class ProposalRequest(BaseModel):
     client_pain_points: str
     budget_range: str
     timeline: str
+    strategy: Optional[dict[str, Any]] = None

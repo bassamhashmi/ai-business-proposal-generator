@@ -46,6 +46,9 @@ type JobResult = {
   error_message?: string;
 };
 
+type Strategy = { template: string; tone: string; differentiators: string; case_studies: string; standard_terms: string; pricing_notes: string };
+type Outline = { title: string; sections: { heading: string; purpose: string }[] };
+
 export default function ProposalIntake() {
   const [step, setStep] = useState<"intake" | "review">("intake");
   const [companyName, setCompanyName] = useState("");
@@ -65,6 +68,8 @@ export default function ProposalIntake() {
   const [jobStage, setJobStage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [strategy, setStrategy] = useState<Strategy>({ template: "Business proposal", tone: "Confident and consultative", differentiators: "", case_studies: "", standard_terms: "", pricing_notes: "" });
+  const [outline, setOutline] = useState<Outline | null>(null);
 
   const createDraft = async () => {
     if (proposalId) return proposalId;
@@ -230,14 +235,14 @@ export default function ProposalIntake() {
         setSaveState("Saving draft...");
         await updateProposalDraft(proposalId, {
           status: "ready_for_generation",
-          input_data: fields,
+          input_data: { ...fields, strategy, outline },
           ai_brief: brief || fields,
         });
       }
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...fields, proposal_id: proposalId || undefined }),
+        body: JSON.stringify({ ...fields, strategy, proposal_id: proposalId || undefined }),
       });
       if (!res.ok) throw new Error();
       const job = (await res.json()) as JobResult;
@@ -253,6 +258,23 @@ export default function ProposalIntake() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleOutline = async () => {
+    if (!proposalId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/outline`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(strategy) });
+      if (!res.ok) throw new Error();
+      const job = (await res.json()) as JobResult;
+      setJobStage("queued");
+      setOutline((await waitForJob(job.id)) as unknown as Outline);
+      setJobStage("");
+    } catch {
+      setJobStage("");
+      setError("Couldn't generate the proposal outline.");
+    } finally { setLoading(false); }
   };
 
   const missingInformation = Array.isArray(brief?.missing_information)
@@ -403,6 +425,12 @@ export default function ProposalIntake() {
             I accept that missing budget or timeline details are assumptions requiring review.
           </label>
         )}
+        <div className="border border-gray-700 rounded-lg p-4 space-y-3">
+          <h2 className="font-semibold text-white">Proposal strategy</h2>
+          {(Object.keys(strategy) as (keyof Strategy)[]).map((key) => <input key={key} value={strategy[key]} placeholder={key.replace(/_/g, " ")} onChange={(e) => setStrategy({ ...strategy, [key]: e.target.value })} className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-800 text-white" />)}
+          <button onClick={handleOutline} disabled={loading || !proposalId} className="w-full border border-blue-500 text-blue-200 px-4 py-2 rounded disabled:opacity-50">{loading ? "Planning..." : "Generate proposal outline"}</button>
+          {outline && <div className="text-sm text-gray-300"><p className="font-medium text-white mb-2">{outline.title}</p><ol className="list-decimal pl-5 space-y-1">{outline.sections.map((section) => <li key={section.heading}><span className="text-white">{section.heading}</span> — {section.purpose}</li>)}</ol></div>}
+        </div>
         <button
           onClick={handleGenerate}
           disabled={loading}
