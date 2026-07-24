@@ -7,6 +7,8 @@ from app.schemas.job import JobResponse
 from app.services.job_service import run_generation_job
 from app.services.job_service import run_outline_job
 from app.schemas.strategy import ProposalStrategy
+from app.schemas.proposal_output import ProposalOutput
+from app.services.quality_service import check_proposal_quality
 from app.schemas.proposal_request import ProposalRequest
 from app.schemas.proposal_draft import (
     ProposalCreate,
@@ -137,6 +139,12 @@ def create_outline(
     db.refresh(job)
     background_tasks.add_task(run_outline_job, job.id)
     return job
+
+
+@router.post("/proposals/{proposal_id}/quality-check")
+def quality_check(proposal_id: str, proposal: ProposalOutput, db: Session = Depends(get_db)):
+    get_proposal_or_404(proposal_id, db)
+    return {"issues": check_proposal_quality(proposal)}
 
 
 @router.post("/generate-proposal")

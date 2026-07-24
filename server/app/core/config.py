@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     log_llm_responses: bool = True
     research_cache_ttl_seconds: int = 3600
     research_cache_max_entries: int = 200
+    retrieval_max_distance: float = 0.85
+    retrieval_candidate_count: int = 20
 
     class Config:
         env_file = ".env"

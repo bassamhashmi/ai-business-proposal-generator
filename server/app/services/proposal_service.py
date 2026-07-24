@@ -33,6 +33,7 @@ async def generate_proposal(req: ProposalRequest, llm: LLMProvider, db: Session,
                 "proposal_generation_completed",
                 attempt=attempt + 1,
                 chunk_count=len(chunks),
+                retrieval_scores=[getattr(chunk, "retrieval_score", None) for chunk in chunks],
                 duration_ms=round((time.perf_counter() - started) * 1000),
             )
             return ProposalOutput(**raw)

@@ -70,6 +70,7 @@ export default function ProposalIntake() {
   const [error, setError] = useState("");
   const [strategy, setStrategy] = useState<Strategy>({ template: "Business proposal", tone: "Confident and consultative", differentiators: "", case_studies: "", standard_terms: "", pricing_notes: "" });
   const [outline, setOutline] = useState<Outline | null>(null);
+  const [qualityIssues, setQualityIssues] = useState<{ severity: string; section: string; message: string }[]>([]);
 
   const createDraft = async () => {
     if (proposalId) return proposalId;
@@ -277,6 +278,17 @@ export default function ProposalIntake() {
     } finally { setLoading(false); }
   };
 
+  const handleQualityCheck = async () => {
+    if (!proposalId || !result) return;
+    const proposal = Object.fromEntries(
+      Object.entries(result).filter(([key]) => key !== "proposal_id" && key !== "version_id"),
+    );
+    const res = await fetch(`/api/proposals/${proposalId}/quality-check`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(proposal) });
+    if (!res.ok) { setError("Couldn't run proposal quality checks."); return; }
+    const data = await res.json();
+    setQualityIssues(data.issues || []);
+  };
+
   const missingInformation = Array.isArray(brief?.missing_information)
     ? brief.missing_information
     : [];
@@ -448,6 +460,8 @@ export default function ProposalIntake() {
 
       {result && (
         <>
+          <button onClick={handleQualityCheck} className="mt-6 w-full border border-amber-600 text-amber-200 px-4 py-2 rounded">Run quality checks</button>
+          {qualityIssues.length > 0 && <div className="mt-3 border border-amber-700 rounded p-4 text-sm text-amber-100">{qualityIssues.map((issue) => <p key={`${issue.section}-${issue.message}`}>{issue.section.replace(/_/g, " ")}: {issue.message}</p>)}</div>}
           <div className="flex gap-3 mt-6">
             <button
               onClick={() =>
