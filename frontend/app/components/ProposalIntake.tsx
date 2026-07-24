@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { exportDocument } from "@/lib/api-client";
+import {
+  createProposalDraft,
+  exportDocument,
+  updateProposalDraft,
+} from "@/lib/api-client";
 
 type ExtractedFields = {
   business_name: string;
@@ -18,6 +22,8 @@ type ProposalResult = {
   timeline: string;
   pricing_overview: string;
   next_steps: string;
+  proposal_id?: string;
+  version_id?: string;
 };
 
 export default function ProposalIntake() {
@@ -32,8 +38,25 @@ export default function ProposalIntake() {
   const [researching, setResearching] = useState(false);
   const [fields, setFields] = useState<ExtractedFields | null>(null);
   const [result, setResult] = useState<ProposalResult | null>(null);
+  const [proposalId, setProposalId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"" | "Saving draft..." | "Draft saved">("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const createDraft = async () => {
+    if (proposalId) return proposalId;
+    const draft = await createProposalDraft({
+      business_name: companyName || "Untitled proposal",
+      website_url: websiteUrl || undefined,
+      input_data: {
+        company_name: companyName,
+        website_url: websiteUrl,
+        company_context: companyContext,
+      },
+    });
+    setProposalId(draft.id);
+    return draft.id;
+  };
 
   const handleExtract = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,14 +74,48 @@ export default function ProposalIntake() {
     else formData.append("free_text", freeText);
 
     try {
+      setSaveState("Saving draft...");
+      const draftId = proposalId
+        ? proposalId
+        : (
+            await createProposalDraft({
+              business_name: companyName,
+              website_url: websiteUrl || undefined,
+              input_data: {
+                company_name: companyName,
+                website_url: websiteUrl,
+                company_context: companyContext,
+                research_industry: researchIndustry,
+                research_service_offered: researchServiceOffered,
+                requirements_text: file ? undefined : freeText,
+              },
+              source_documents: file
+                ? [
+                    {
+                      file_name: file.name,
+                      media_type: file.type || undefined,
+                      size_bytes: file.size,
+                    },
+                  ]
+                : [],
+            })
+          ).id;
+      setProposalId(draftId);
       const res = await fetch("/api/extract", {
         method: "POST",
         body: formData,
       });
       if (!res.ok) throw new Error();
-      setFields(await res.json());
+      const extracted = await res.json();
+      setFields(extracted);
+      await updateProposalDraft(draftId, {
+        status: "brief_ready",
+        ai_brief: extracted,
+      });
+      setSaveState("Draft saved");
       setStep("review");
     } catch {
+      setSaveState("");
       setError(
         "Couldn't extract fields from that input. Try again or check the file format.",
       );
@@ -71,6 +128,7 @@ export default function ProposalIntake() {
     if (!companyName && !websiteUrl) return;
     setResearching(true);
     try {
+      const draftId = await createDraft();
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -86,6 +144,19 @@ export default function ProposalIntake() {
       if (data.business_name && !companyName) {
         setCompanyName(data.business_name);
       }
+      await fetch(`/api/proposals/${draftId}/research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_url: websiteUrl || undefined,
+          source_name: companyName || data.business_name || undefined,
+          summary: data.company_context || "No research summary was returned.",
+          structured_data: {
+            industry: data.industry || undefined,
+            service_offered: data.service_offered || undefined,
+          },
+        }),
+      });
     } catch {
       setError("Company research failed — you can skip this and continue.");
     } finally {
@@ -102,13 +173,24 @@ export default function ProposalIntake() {
     setLoading(true);
     setError("");
     try {
+      if (proposalId) {
+        setSaveState("Saving draft...");
+        await updateProposalDraft(proposalId, {
+          status: "ready_for_generation",
+          input_data: fields,
+          ai_brief: fields,
+        });
+      }
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fields),
+        body: JSON.stringify({ ...fields, proposal_id: proposalId || undefined }),
       });
       if (!res.ok) throw new Error();
-      setResult(await res.json());
+      const generated = await res.json();
+      setResult(generated);
+      if (generated.proposal_id) setProposalId(generated.proposal_id);
+      setSaveState("Draft saved");
     } catch {
       setError("Something went wrong generating the proposal.");
     } finally {
@@ -125,6 +207,7 @@ export default function ProposalIntake() {
         <p className="text-gray-400 mb-8">
           Upload a document or paste requirements to extract proposal details
         </p>
+        {saveState && <p className="text-sm text-gray-400 mb-4">{saveState}</p>}
         <form onSubmit={handleExtract} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">
@@ -218,6 +301,7 @@ export default function ProposalIntake() {
         Confirm or correct the extracted information before generating the
         proposal
       </p>
+      {saveState && <p className="text-sm text-gray-400 mb-4">{saveState}</p>}
       <div className="space-y-5">
         {fields &&
           (Object.keys(fields) as (keyof ExtractedFields)[]).map((key) => (
@@ -252,7 +336,13 @@ export default function ProposalIntake() {
           <div className="flex gap-3 mt-6">
             <button
               onClick={() =>
-                exportDocument("pdf", fields!.business_name, result)
+                exportDocument(
+                  "pdf",
+                  fields!.business_name,
+                  result,
+                  proposalId || undefined,
+                  result.version_id,
+                )
               }
               className="flex-1 border border-gray-600 text-gray-300 px-4 py-2.5 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
             >
@@ -260,7 +350,13 @@ export default function ProposalIntake() {
             </button>
             <button
               onClick={() =>
-                exportDocument("docx", fields!.business_name, result)
+                exportDocument(
+                  "docx",
+                  fields!.business_name,
+                  result,
+                  proposalId || undefined,
+                  result.version_id,
+                )
               }
               className="flex-1 border border-gray-600 text-gray-300 px-4 py-2.5 rounded-lg font-medium hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
             >
@@ -271,7 +367,9 @@ export default function ProposalIntake() {
             <h2 className="text-xl font-semibold text-white">
               Generated Proposal
             </h2>
-            {Object.entries(result).map(([section, text]) => (
+            {Object.entries(result)
+              .filter(([section]) => !["proposal_id", "version_id"].includes(section))
+              .map(([section, text]) => (
               <div
                 key={section}
                 className="border border-gray-700 rounded-lg p-5 bg-gray-800 shadow-sm"
@@ -283,7 +381,7 @@ export default function ProposalIntake() {
                   {text}
                 </p>
               </div>
-            ))}
+              ))}
           </div>
         </>
       )}
