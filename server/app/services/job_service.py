@@ -6,7 +6,7 @@ from app.db.models import GenerationRun, Job, Proposal, ProposalVersion, Researc
 from app.db.session import SessionLocal
 from app.llm.factory import get_llm_provider
 from app.schemas.proposal_request import ProposalRequest
-from app.services.agent_service import research_by_website, research_company
+from app.services.agent_service import research_with_cache
 from app.services.extraction_service import extract_fields
 from app.schemas.extraction_output import brief_to_generation_fields
 from app.services.proposal_service import generate_proposal
@@ -46,14 +46,10 @@ async def run_research_job(job_id: str) -> None:
         _set_job_state(job, status="running", stage="researching", started_at=_now())
         db.commit()
 
-        llm = get_llm_provider()
+        llm = get_llm_provider("research")
         website_url = job.input_data.get("website_url")
         company_name = job.input_data.get("company_name")
-        if website_url:
-            result = await research_by_website(website_url, llm)
-        else:
-            summary = await research_company(company_name, llm)
-            result = {"business_name": company_name, "company_context": summary}
+        result = await research_with_cache(company_name, website_url, llm)
 
         if job.status == "cancelled":
             return
@@ -94,7 +90,7 @@ async def run_extraction_job(job_id: str) -> None:
         extracted = await extract_fields(
             payload["company_name"],
             payload["source_text"],
-            get_llm_provider(),
+            get_llm_provider("extraction"),
             company_context=payload.get("company_context", ""),
             research_industry=payload.get("research_industry"),
             research_service_offered=payload.get("research_service_offered"),
@@ -131,7 +127,7 @@ async def run_generation_job(job_id: str) -> None:
             raise ValueError("Proposal not found for generation job.")
         proposal.status = "generating"
         request = ProposalRequest(proposal_id=proposal.id, **job.input_data)
-        llm = get_llm_provider()
+        llm = get_llm_provider("generation")
         run = GenerationRun(
             proposal_id=proposal.id,
             status="running",

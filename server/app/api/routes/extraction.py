@@ -75,7 +75,7 @@ async def extract_request_route(
         background_tasks.add_task(run_extraction_job, job.id)
         return JobResponse.model_validate(job)
 
-    llm = get_llm_provider()
+    llm = get_llm_provider("extraction")
     try:
         extracted = await extract_fields(
             company_name,
@@ -85,6 +85,7 @@ async def extract_request_route(
             research_industry=research_industry,
             research_service_offered=research_service_offered
         )
+        print('>>> extracted', extracted)
     except ExtractionError as e:
         raise HTTPException(status_code=502, detail=str(e))
 

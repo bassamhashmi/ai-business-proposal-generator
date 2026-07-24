@@ -6,7 +6,7 @@ from app.db.models import Job, Proposal
 from app.db.session import get_db
 from app.schemas.job import JobResponse
 from app.services.job_service import run_research_job
-from app.services.agent_service import research_company, research_by_website
+from app.services.agent_service import research_with_cache
 from app.llm.factory import get_llm_provider
 
 router = APIRouter()
@@ -42,12 +42,6 @@ async def research_company_route(
         background_tasks.add_task(run_research_job, job.id)
         return JobResponse.model_validate(job)
 
-    llm = get_llm_provider()
-
-    if req.website_url:
-        result = await research_by_website(req.website_url, llm)
-    else:
-        summary = await research_company(req.company_name, llm)
-        result = {"business_name": req.company_name, "company_context": summary}
-
-    return result
+    return await research_with_cache(
+        req.company_name, req.website_url, get_llm_provider("research")
+    )

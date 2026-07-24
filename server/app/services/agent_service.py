@@ -6,6 +6,7 @@ from app.services.website_service import fetch_website_text
 from app.prompts.research_prompts import WEBSITE_SUMMARY_SYSTEM_PROMPT, build_website_summary_prompt
 from app.schemas.research_output import ResearchOutput
 from app.core.logging import log_event
+from app.services.research_cache import get_cached_research, research_cache_key, store_cached_research
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +69,24 @@ async def research_by_website(url: str, llm: LLMProvider) -> dict:
         }
     except Exception:
         return {"business_name": "", "company_context": "Couldn't summarize that website."}
+
+
+async def research_with_cache(
+    company_name: Optional[str], website_url: Optional[str], llm: LLMProvider
+) -> dict:
+    key = research_cache_key(company_name, website_url)
+    cached, age_seconds = get_cached_research(key)
+    if cached is not None:
+        cached["research_cache"] = {"status": "hit", "age_seconds": age_seconds}
+        log_event(logger, "research_cache_hit", cache_age_seconds=age_seconds)
+        return cached
+
+    if website_url:
+        result = await research_by_website(website_url, llm)
+    else:
+        summary = await research_company(company_name or "", llm)
+        result = {"business_name": company_name or "", "company_context": summary}
+    store_cached_research(key, result)
+    result["research_cache"] = {"status": "miss", "age_seconds": 0}
+    log_event(logger, "research_cache_miss")
+    return result

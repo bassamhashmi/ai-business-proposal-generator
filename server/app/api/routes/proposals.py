@@ -141,7 +141,7 @@ async def generate_proposal_route(
         db.add(proposal)
         db.flush()
 
-    llm = get_llm_provider()
+    llm = get_llm_provider("generation")
     run = GenerationRun(
         proposal_id=proposal.id,
         status="running",

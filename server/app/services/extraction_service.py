@@ -35,7 +35,13 @@ async def extract_fields(
     for attempt in range(retries + 1):
         started = time.perf_counter()
         try:
-            raw = await llm.generate_structured(EXTRACTION_SYSTEM_PROMPT, prompt, schema, temperature=0.1)
+            raw = await llm.generate_structured(
+                EXTRACTION_SYSTEM_PROMPT,
+                prompt,
+                schema,
+                temperature=0.1,
+                num_predict=3000,
+            )
             log_event(
                 logger,
                 "extraction_completed",
