@@ -8,6 +8,7 @@ class LLMProvider(ABC):
         user_prompt: str,
         schema: dict,
         temperature: float = 0.3,
+        num_predict: int = 2000,
     ) -> dict:
         """Returns a dict matching the given JSON schema."""
         ...

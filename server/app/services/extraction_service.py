@@ -31,7 +31,7 @@ async def extract_fields(
         try:
             raw = await llm.generate_structured(EXTRACTION_SYSTEM_PROMPT, prompt, schema, temperature=0.1)
             return ExtractedFields(**raw)
-        except (json.JSONDecodeError, ValidationError) as e:
+        except (json.JSONDecodeError, ValidationError, ValueError) as e:
             last_error = e
             continue
 

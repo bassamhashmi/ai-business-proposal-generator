@@ -8,3 +8,5 @@ chroma_db
 .env
 
 knowledge_base
+
+.DS_Store

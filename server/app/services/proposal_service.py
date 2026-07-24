@@ -21,9 +21,14 @@ async def generate_proposal(req: ProposalRequest, llm: LLMProvider, db: Session,
     last_error = None
     for attempt in range(retries + 1):
         try:
-            raw = await llm.generate_structured(SYSTEM_PROMPT, prompt, schema)
+            raw = await llm.generate_structured(SYSTEM_PROMPT, prompt, schema, num_predict=4000)
             return ProposalOutput(**raw)
         except (json.JSONDecodeError, ValidationError) as e:
+            print(f"Attempt {attempt + 1} failed: {type(e).__name__}: {e}")
+            last_error = e
+            continue
+        except Exception as e:
+            print(f"Unexpected error on attempt {attempt + 1}: {type(e).__name__}: {e}")
             last_error = e
             continue
 
