@@ -26,11 +26,23 @@ type ProposalResult = {
   version_id?: string;
 };
 
+type EvidenceField = {
+  value: string;
+  confidence: "high" | "medium" | "low" | "missing";
+  source_reference: string;
+  source_excerpt: string;
+};
+
+type EvidenceBrief = Record<string, EvidenceField | string[] | string> & {
+  business_name: string;
+  missing_information: string[];
+};
+
 type JobResult = {
   id: string;
   status: "queued" | "running" | "completed" | "failed" | "cancelled";
   stage: string;
-  result_data?: Record<string, string>;
+  result_data?: Record<string, unknown>;
   error_message?: string;
 };
 
@@ -45,6 +57,8 @@ export default function ProposalIntake() {
   const [researchServiceOffered, setResearchServiceOffered] = useState("");
   const [researching, setResearching] = useState(false);
   const [fields, setFields] = useState<ExtractedFields | null>(null);
+  const [brief, setBrief] = useState<EvidenceBrief | null>(null);
+  const [acceptMissingCommercialDetails, setAcceptMissingCommercialDetails] = useState(false);
   const [result, setResult] = useState<ProposalResult | null>(null);
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"" | "Saving draft..." | "Draft saved">("");
@@ -80,6 +94,15 @@ export default function ProposalIntake() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   };
+
+  const toGenerationFields = (value: EvidenceBrief): ExtractedFields => ({
+    business_name: value.business_name,
+    industry: (value.industry as EvidenceField).value,
+    service_offered: (value.service_offered as EvidenceField).value,
+    client_pain_points: (value.client_pain_points as EvidenceField).value,
+    budget_range: (value.budget_range as EvidenceField).value,
+    timeline: (value.timeline as EvidenceField).value,
+  });
 
   const handleExtract = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,11 +155,12 @@ export default function ProposalIntake() {
       if (!res.ok) throw new Error();
       const job = (await res.json()) as JobResult;
       setJobStage("queued");
-      const extracted = (await waitForJob(job.id)) as ExtractedFields;
-      setFields(extracted);
+      const extracted = (await waitForJob(job.id)) as EvidenceBrief;
+      setBrief(extracted);
+      setFields(toGenerationFields(extracted));
       await updateProposalDraft(draftId, {
-        status: "brief_ready",
-        ai_brief: extracted,
+          status: "brief_ready",
+          ai_brief: extracted,
       });
       setSaveState("Draft saved");
       setJobStage("");
@@ -169,7 +193,7 @@ export default function ProposalIntake() {
       if (!res.ok) throw new Error("Research request failed");
       const job = (await res.json()) as JobResult;
       setJobStage("queued");
-      const data = await waitForJob(job.id);
+      const data = (await waitForJob(job.id)) as Record<string, string>;
       setCompanyContext(data.company_context || "");
       setResearchIndustry(data.industry || "");
       setResearchServiceOffered(data.service_offered || "");
@@ -187,10 +211,18 @@ export default function ProposalIntake() {
 
   const updateField = (key: keyof ExtractedFields, value: string) => {
     if (fields) setFields({ ...fields, [key]: value });
+    if (brief && key !== "business_name") {
+      const item = brief[key] as EvidenceField;
+      setBrief({ ...brief, [key]: { ...item, value, confidence: "high", source_reference: "User review", source_excerpt: "Edited by user" } });
+    }
   };
 
   const handleGenerate = async () => {
     if (!fields) return;
+    if ((!fields.budget_range || !fields.timeline) && !acceptMissingCommercialDetails) {
+      setError("Confirm that you accept the missing budget or timeline assumptions before generating.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -199,7 +231,7 @@ export default function ProposalIntake() {
         await updateProposalDraft(proposalId, {
           status: "ready_for_generation",
           input_data: fields,
-          ai_brief: fields,
+          ai_brief: brief || fields,
         });
       }
       const res = await fetch("/api/generate", {
@@ -222,6 +254,10 @@ export default function ProposalIntake() {
       setLoading(false);
     }
   };
+
+  const missingInformation = Array.isArray(brief?.missing_information)
+    ? brief.missing_information
+    : [];
 
   if (step === "intake") {
     return (
@@ -343,6 +379,30 @@ export default function ProposalIntake() {
               />
             </div>
           ))}
+        {missingInformation.length > 0 && (
+          <div className="border border-amber-700 rounded-lg p-4 bg-amber-900/20 text-amber-100">
+            <p className="font-medium mb-2">Information to confirm</p>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              {missingInformation.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </div>
+        )}
+        {brief && (
+          <div className="space-y-3 text-sm text-gray-400">
+            {(Object.entries(brief) as [string, EvidenceField | string[] | string][])
+              .filter(([key, item]) => key !== "business_name" && key !== "missing_information" && typeof item === "object" && !Array.isArray(item))
+              .map(([key, item]) => {
+                const evidence = item as EvidenceField;
+                return evidence.source_excerpt ? <p key={key}><span className="text-gray-300 capitalize">{key.replace(/_/g, " ")}:</span> {evidence.confidence} confidence — {evidence.source_excerpt}</p> : null;
+              })}
+          </div>
+        )}
+        {(!fields?.budget_range || !fields?.timeline) && (
+          <label className="flex gap-2 text-sm text-amber-200">
+            <input type="checkbox" checked={acceptMissingCommercialDetails} onChange={(e) => setAcceptMissingCommercialDetails(e.target.checked)} />
+            I accept that missing budget or timeline details are assumptions requiring review.
+          </label>
+        )}
         <button
           onClick={handleGenerate}
           disabled={loading}

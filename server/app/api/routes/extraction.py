@@ -15,6 +15,7 @@ from app.services.file_input_service import (
 from app.services.extraction_service import extract_fields, ExtractionError
 from app.llm.factory import get_llm_provider
 from app.services.job_service import run_extraction_job
+from app.schemas.extraction_output import brief_to_generation_fields
 
 router = APIRouter()
 
@@ -87,6 +88,4 @@ async def extract_request_route(
     except ExtractionError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    result = extracted.model_dump()
-    result["business_name"] = company_name
-    return result
+    return brief_to_generation_fields(extracted, company_name)

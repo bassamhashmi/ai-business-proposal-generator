@@ -4,7 +4,7 @@ import time
 from typing import Optional
 from pydantic import ValidationError
 from app.llm.base import LLMProvider
-from app.schemas.extraction_output import ExtractedFields
+from app.schemas.extraction_output import ProposalBrief
 from app.prompts.extraction_prompts import EXTRACTION_SYSTEM_PROMPT, build_extraction_prompt
 from app.core.logging import log_event
 
@@ -21,7 +21,7 @@ async def extract_fields(
     research_industry: Optional[str] = None,
     research_service_offered: Optional[str] = None,
     retries: int = 1
-) -> ExtractedFields:
+) -> ProposalBrief:
     prompt = build_extraction_prompt(
         company_name,
         source_text,
@@ -29,7 +29,7 @@ async def extract_fields(
         research_industry=research_industry,
         research_service_offered=research_service_offered
     )
-    schema = ExtractedFields.model_json_schema()
+    schema = ProposalBrief.model_json_schema()
 
     last_error = None
     for attempt in range(retries + 1):
@@ -42,7 +42,7 @@ async def extract_fields(
                 attempt=attempt + 1,
                 duration_ms=round((time.perf_counter() - started) * 1000),
             )
-            return ExtractedFields(**raw)
+            return ProposalBrief(**raw)
         except (json.JSONDecodeError, ValidationError, ValueError) as e:
             log_event(
                 logger,

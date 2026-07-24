@@ -8,6 +8,7 @@ from app.llm.factory import get_llm_provider
 from app.schemas.proposal_request import ProposalRequest
 from app.services.agent_service import research_by_website, research_company
 from app.services.extraction_service import extract_fields
+from app.schemas.extraction_output import brief_to_generation_fields
 from app.services.proposal_service import generate_proposal
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ async def run_extraction_job(job_id: str) -> None:
         proposal = db.get(Proposal, job.proposal_id)
         if proposal:
             proposal.ai_brief = result
+            proposal.input_data = brief_to_generation_fields(extracted, payload["company_name"])
             proposal.status = "brief_ready"
         _set_job_state(job, status="completed", stage="completed", result_data=result, completed_at=_now())
         db.commit()

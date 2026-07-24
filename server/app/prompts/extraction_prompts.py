@@ -5,7 +5,9 @@ EXTRACTION_SYSTEM_PROMPT = (
     "Read the provided source text describing a client's requirements and extract "
     "the requested fields strictly matching the JSON schema. "
     "Only extract information that is explicitly present or clearly implied in the source text. "
-    "If a field's information cannot be found, return an empty string for that field. "
+    "For every field return a value, confidence, source_reference, and a short exact source_excerpt. "
+    "Use confidence high for explicit requirements, medium for clear implications, low for research hints, and missing when unknown. "
+    "If unknown, use an empty value and source fields. "
     "Never invent, assume, or estimate values that are not supported by the source text."
 )
 
@@ -36,4 +38,4 @@ Source text describing the client's requirements:
 {source_text}
 ---
 
-Extract the industry, service offered, client pain points, budget range, and timeline from the above. Prefer the source text over background research when they conflict. Only use the additional research findings if they are clear and the source text does not provide conflicting information."""
+Extract industry, service offered, client pain points, objectives, required deliverables, decision criteria, budget range, timeline, stakeholders, assumptions, exclusions, and missing information. Prefer source text over research; use `requirements` as source_reference for source text and `company research` only for unambiguous research hints."""
