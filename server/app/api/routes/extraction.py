@@ -1,7 +1,11 @@
 import tempfile
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy.orm import Session
+from app.db.models import Job, Proposal
+from app.db.session import get_db
+from app.schemas.job import JobResponse
 from app.services.file_input_service import (
     FileInputError,
     extract_text_from_upload,
@@ -10,17 +14,21 @@ from app.services.file_input_service import (
 )
 from app.services.extraction_service import extract_fields, ExtractionError
 from app.llm.factory import get_llm_provider
+from app.services.job_service import run_extraction_job
 
 router = APIRouter()
 
 @router.post("/extract-request")
 async def extract_request_route(
+    background_tasks: BackgroundTasks,
     company_name: str = Form(...),
     free_text: Optional[str] = Form(None),
     company_context: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     research_industry: Optional[str] = Form(None),
     research_service_offered: Optional[str] = Form(None),
+    proposal_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
 ):
     source_text = ""
 
@@ -45,6 +53,26 @@ async def extract_request_route(
 
     if not source_text.strip():
         raise HTTPException(status_code=400, detail="Could not extract any text from the provided input.")
+
+    if proposal_id:
+        if db.get(Proposal, proposal_id) is None:
+            raise HTTPException(status_code=404, detail="Proposal not found.")
+        job = Job(
+            proposal_id=proposal_id,
+            job_type="extraction",
+            input_data={
+                "company_name": company_name,
+                "source_text": source_text,
+                "company_context": company_context or "",
+                "research_industry": research_industry,
+                "research_service_offered": research_service_offered,
+            },
+        )
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        background_tasks.add_task(run_extraction_job, job.id)
+        return JobResponse.model_validate(job)
 
     llm = get_llm_provider()
     try:

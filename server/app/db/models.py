@@ -135,3 +135,20 @@ class ProposalExport(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     proposal = relationship("Proposal", back_populates="exports")
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    proposal_id = Column(String(36), ForeignKey("proposals.id"), nullable=True, index=True)
+    job_type = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="queued")
+    stage = Column(String, nullable=False, default="queued")
+    input_data = Column(JSON, nullable=False, default=dict)
+    result_data = Column(JSON, nullable=True)
+    error_type = Column(String, nullable=True)
+    error_message = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)

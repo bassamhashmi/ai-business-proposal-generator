@@ -26,6 +26,14 @@ type ProposalResult = {
   version_id?: string;
 };
 
+type JobResult = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  stage: string;
+  result_data?: Record<string, string>;
+  error_message?: string;
+};
+
 export default function ProposalIntake() {
   const [step, setStep] = useState<"intake" | "review">("intake");
   const [companyName, setCompanyName] = useState("");
@@ -40,6 +48,7 @@ export default function ProposalIntake() {
   const [result, setResult] = useState<ProposalResult | null>(null);
   const [proposalId, setProposalId] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"" | "Saving draft..." | "Draft saved">("");
+  const [jobStage, setJobStage] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -56,6 +65,20 @@ export default function ProposalIntake() {
     });
     setProposalId(draft.id);
     return draft.id;
+  };
+
+  const waitForJob = async (jobId: string) => {
+    while (true) {
+      const res = await fetch(`/api/jobs/${jobId}`);
+      if (!res.ok) throw new Error("Unable to read job status");
+      const job = (await res.json()) as JobResult;
+      setJobStage(job.stage.replace(/_/g, " "));
+      if (job.status === "completed") return job.result_data || {};
+      if (job.status === "failed" || job.status === "cancelled") {
+        throw new Error(job.error_message || "Background task failed");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   };
 
   const handleExtract = async (e: React.FormEvent) => {
@@ -101,21 +124,26 @@ export default function ProposalIntake() {
             })
           ).id;
       setProposalId(draftId);
+      formData.append("proposal_id", draftId);
       const res = await fetch("/api/extract", {
         method: "POST",
         body: formData,
       });
       if (!res.ok) throw new Error();
-      const extracted = await res.json();
+      const job = (await res.json()) as JobResult;
+      setJobStage("queued");
+      const extracted = (await waitForJob(job.id)) as ExtractedFields;
       setFields(extracted);
       await updateProposalDraft(draftId, {
         status: "brief_ready",
         ai_brief: extracted,
       });
       setSaveState("Draft saved");
+      setJobStage("");
       setStep("review");
     } catch {
       setSaveState("");
+      setJobStage("");
       setError(
         "Couldn't extract fields from that input. Try again or check the file format.",
       );
@@ -135,29 +163,22 @@ export default function ProposalIntake() {
         body: JSON.stringify({
           company_name: companyName || undefined,
           website_url: websiteUrl || undefined,
+          proposal_id: draftId,
         }),
       });
-      const data = await res.json();
+      if (!res.ok) throw new Error("Research request failed");
+      const job = (await res.json()) as JobResult;
+      setJobStage("queued");
+      const data = await waitForJob(job.id);
       setCompanyContext(data.company_context || "");
       setResearchIndustry(data.industry || "");
       setResearchServiceOffered(data.service_offered || "");
       if (data.business_name && !companyName) {
         setCompanyName(data.business_name);
       }
-      await fetch(`/api/proposals/${draftId}/research`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source_url: websiteUrl || undefined,
-          source_name: companyName || data.business_name || undefined,
-          summary: data.company_context || "No research summary was returned.",
-          structured_data: {
-            industry: data.industry || undefined,
-            service_offered: data.service_offered || undefined,
-          },
-        }),
-      });
+      setJobStage("");
     } catch {
+      setJobStage("");
       setError("Company research failed — you can skip this and continue.");
     } finally {
       setResearching(false);
@@ -187,11 +208,15 @@ export default function ProposalIntake() {
         body: JSON.stringify({ ...fields, proposal_id: proposalId || undefined }),
       });
       if (!res.ok) throw new Error();
-      const generated = await res.json();
+      const job = (await res.json()) as JobResult;
+      setJobStage("queued");
+      const generated = (await waitForJob(job.id)) as ProposalResult;
       setResult(generated);
       if (generated.proposal_id) setProposalId(generated.proposal_id);
       setSaveState("Draft saved");
+      setJobStage("");
     } catch {
+      setJobStage("");
       setError("Something went wrong generating the proposal.");
     } finally {
       setLoading(false);
@@ -208,6 +233,7 @@ export default function ProposalIntake() {
           Upload a document or paste requirements to extract proposal details
         </p>
         {saveState && <p className="text-sm text-gray-400 mb-4">{saveState}</p>}
+        {jobStage && <p className="text-sm text-blue-300 mb-4">Working: {jobStage}...</p>}
         <form onSubmit={handleExtract} className="space-y-5">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1.5">
@@ -302,6 +328,7 @@ export default function ProposalIntake() {
         proposal
       </p>
       {saveState && <p className="text-sm text-gray-400 mb-4">{saveState}</p>}
+      {jobStage && <p className="text-sm text-blue-300 mb-4">Working: {jobStage}...</p>}
       <div className="space-y-5">
         {fields &&
           (Object.keys(fields) as (keyof ExtractedFields)[]).map((key) => (

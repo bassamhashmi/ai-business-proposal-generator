@@ -11,6 +11,7 @@ from app.api.routes.proposals import router as proposals_router
 from app.api.routes.extraction import router as extraction_router
 from app.api.routes.export import router as export_router
 from app.api.routes.research import router as research_router
+from app.api.routes.jobs import router as jobs_router
 from app.db.init_db import init_db
 
 configure_logging()
@@ -29,6 +30,7 @@ app.include_router(proposals_router, prefix="/api/v1")
 app.include_router(extraction_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(research_router, prefix="/api/v1")
+app.include_router(jobs_router, prefix="/api/v1")
 
 
 @app.on_event("startup")

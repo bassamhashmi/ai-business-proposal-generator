@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
-from app.db.models import GenerationRun, Proposal, ProposalVersion, ResearchResult, SourceDocument
+from app.db.models import GenerationRun, Job, Proposal, ProposalVersion, ResearchResult, SourceDocument
+from app.schemas.job import JobResponse
+from app.services.job_service import run_generation_job
 from app.schemas.proposal_request import ProposalRequest
 from app.schemas.proposal_draft import (
     ProposalCreate,
@@ -110,10 +112,26 @@ def add_research_result(
 
 
 @router.post("/generate-proposal")
-async def generate_proposal_route(req: ProposalRequest, db: Session = Depends(get_db)):
+async def generate_proposal_route(
+    req: ProposalRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     if req.proposal_id:
         proposal = get_proposal_or_404(req.proposal_id, db)
         proposal.input_data = req.model_dump(exclude={"proposal_id"})
+        job = Job(
+            proposal_id=proposal.id,
+            job_type="generation",
+            input_data=req.model_dump(exclude={"proposal_id"}),
+        )
+        proposal.status = "generation_queued"
+        proposal.job_reference = job.id
+        db.add(job)
+        db.commit()
+        db.refresh(job)
+        background_tasks.add_task(run_generation_job, job.id)
+        return JobResponse.model_validate(job)
     else:
         proposal = Proposal(
             business_name=req.business_name,

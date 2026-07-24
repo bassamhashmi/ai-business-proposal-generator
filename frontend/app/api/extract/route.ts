@@ -8,6 +8,9 @@ export async function POST(req: NextRequest) {
   const forward = new FormData();
   forward.append("company_name", incoming.get("company_name") as string);
 
+  const proposalId = incoming.get("proposal_id");
+  if (proposalId) forward.append("proposal_id", proposalId as string);
+
   const companyContext = incoming.get("company_context");
   if (companyContext)
     forward.append("company_context", companyContext as string);
