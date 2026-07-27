@@ -162,6 +162,10 @@ async def run_generation_job(job_id: str) -> None:
         run.result_payload = content
         run.completed_at = _now()
         proposal.status = "generated"
+        proposal.input_data = {
+            **(proposal.input_data or {}),
+            "generated_content": content,
+        }
         _set_job_state(
             job,
             status="completed",

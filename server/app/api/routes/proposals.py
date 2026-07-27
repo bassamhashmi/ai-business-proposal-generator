@@ -155,7 +155,10 @@ async def generate_proposal_route(
 ):
     if req.proposal_id:
         proposal = get_proposal_or_404(req.proposal_id, db)
-        proposal.input_data = req.model_dump(exclude={"proposal_id"})
+        proposal.input_data = {
+            **(proposal.input_data or {}),
+            **req.model_dump(exclude={"proposal_id"}),
+        }
         job = Job(
             proposal_id=proposal.id,
             job_type="generation",
