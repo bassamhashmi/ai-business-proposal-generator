@@ -32,13 +32,13 @@ const FIELD_LABELS: Record<string, string> = {
   assumptions: "Assumptions",
 };
 
-// Map backend field names to frontend field names
+// Map backend field names to client field names
 const FIELD_MAPPING: Record<string, string> = {
   client_pain_points: "pain_points",
   required_deliverables: "deliverables",
 };
 
-// Normalize backend field names to frontend field names
+// Normalize backend field names to client field names
 const normalizeBrief = (backendBrief: unknown): EvidenceBrief => {
   const data = backendBrief as Record<string, unknown>;
   const normalized: Record<string, unknown> = {};
