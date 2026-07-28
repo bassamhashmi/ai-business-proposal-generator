@@ -10,20 +10,26 @@ const STAGES = [
   { id: "review", label: "Review & Export" },
 ] as const;
 
-type StageId = typeof STAGES[number]["id"];
+type StageId = (typeof STAGES)[number]["id"];
 
 interface WorkspaceStepperProps {
   currentStage: StageId;
+  progressStage?: StageId;
   unlockedStages: StageId[];
   onStageClick: (stage: StageId) => void;
 }
 
 export default function WorkspaceStepper({
   currentStage,
+  progressStage,
   unlockedStages,
   onStageClick,
 }: WorkspaceStepperProps) {
   const currentIndex = STAGES.findIndex((s) => s.id === currentStage);
+  const progressIndex =
+    progressStage !== undefined
+      ? STAGES.findIndex((s) => s.id === progressStage)
+      : currentIndex;
 
   return (
     <div className="w-full border-b border-gray-700 bg-gray-900/50 px-8 py-4">
@@ -32,7 +38,7 @@ export default function WorkspaceStepper({
           {STAGES.map((stage, index) => {
             const isUnlocked = unlockedStages.includes(stage.id);
             const isCurrent = stage.id === currentStage;
-            const isCompleted = index < currentIndex;
+            const isCompleted = index < progressIndex;
 
             return (
               <React.Fragment key={stage.id}>
@@ -50,8 +56,8 @@ export default function WorkspaceStepper({
                       isCurrent
                         ? "border-blue-500 bg-blue-500/20 text-blue-400"
                         : isCompleted
-                        ? "border-green-500 bg-green-500/20 text-green-400"
-                        : "border-gray-600 bg-gray-800 text-gray-400"
+                          ? "border-green-500 bg-green-500/20 text-green-400"
+                          : "border-gray-600 bg-gray-800 text-gray-400"
                     }`}
                   >
                     {isCompleted ? "✓" : index + 1}
@@ -61,9 +67,7 @@ export default function WorkspaceStepper({
                 {index < STAGES.length - 1 && (
                   <div
                     className={`flex-1 h-0.5 mx-2 transition-all ${
-                      index < currentIndex
-                        ? "bg-green-500"
-                        : "bg-gray-700"
+                      index < progressIndex ? "bg-green-500" : "bg-gray-700"
                     }`}
                   />
                 )}

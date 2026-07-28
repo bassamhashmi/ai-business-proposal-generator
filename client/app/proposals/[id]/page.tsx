@@ -18,6 +18,14 @@ import {
 
 type StageId = "opportunity" | "brief" | "strategy" | "draft" | "review";
 
+const STAGES: StageId[] = [
+  "opportunity",
+  "brief",
+  "strategy",
+  "draft",
+  "review",
+];
+
 import type { ProposalDraft } from "@/lib/api-client";
 
 export default function ProposalWorkspace() {
@@ -32,6 +40,9 @@ export default function ProposalWorkspace() {
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
+  const [activeStage, setActiveStage] = useState<StageId | undefined>(
+    undefined,
+  );
 
   const inputDataRef = useRef<Record<string, unknown> | undefined>(
     draft?.input_data,
@@ -56,8 +67,8 @@ export default function ProposalWorkspace() {
     }
   }, [draftId]);
 
-  // Determine current stage from draft status
-  const getCurrentStage = useCallback((): StageId => {
+  // Determine the progress stage from draft status (how far the workflow has advanced)
+  const getProgressStage = useCallback((): StageId => {
     if (!draft) return "opportunity";
 
     const statusToStage: Record<string, StageId> = {
@@ -75,23 +86,25 @@ export default function ProposalWorkspace() {
     return statusToStage[draft.status] || "opportunity";
   }, [draft]);
 
-  // Determine unlocked stages based on current stage
+  // Determine unlocked stages based on progress stage
   const getUnlockedStages = useCallback((): StageId[] => {
-    const currentStage = getCurrentStage();
-    const stages: StageId[] = [
-      "opportunity",
-      "brief",
-      "strategy",
-      "draft",
-      "review",
-    ];
-    const currentIndex = stages.indexOf(currentStage);
-    return stages.slice(0, currentIndex + 1);
-  }, [getCurrentStage]);
+    const progressStage = getProgressStage();
+    const progressIndex = STAGES.indexOf(progressStage);
+    return STAGES.slice(0, progressIndex + 1);
+  }, [getProgressStage]);
 
-  // Derive current stage and unlocked stages from draft
-  const currentStage = getCurrentStage();
+  // Derive progress, active, and unlocked stages from draft
+  const progressStage = getProgressStage();
   const unlockedStages = getUnlockedStages();
+
+  // Compute the actual stage to render.
+  // - If the user has navigated via stepper/continue (activeStage set) AND
+  //   that stage is still unlocked, show it (allows going back)
+  // - Otherwise fall back to the progress stage (workflow advancement)
+  const viewStage: StageId =
+    activeStage !== undefined && unlockedStages.includes(activeStage)
+      ? activeStage
+      : progressStage;
 
   // Load draft on mount
   useEffect(() => {
@@ -132,10 +145,14 @@ export default function ProposalWorkspace() {
 
   const handleStageClick = (stage: StageId) => {
     if (unlockedStages.includes(stage)) {
-      // For now, stages are determined by draft status
-      // In future phases, this will allow navigation between completed stages
-      console.log("Navigate to stage:", stage);
+      setActiveStage(stage);
     }
+  };
+
+  const nextStageFrom = (stage: StageId): StageId | null => {
+    const idx = STAGES.indexOf(stage);
+    if (idx < 0 || idx >= STAGES.length - 1) return null;
+    return STAGES[idx + 1];
   };
 
   const handleRetry = () => {
@@ -184,7 +201,8 @@ export default function ProposalWorkspace() {
           <AutosaveIndicator saveState={saveState} />
         </div>
         <WorkspaceStepper
-          currentStage={currentStage}
+          currentStage={viewStage}
+          progressStage={progressStage}
           unlockedStages={unlockedStages}
           onStageClick={handleStageClick}
         />
@@ -206,18 +224,20 @@ export default function ProposalWorkspace() {
 
       {/* Stage content */}
       <div className="max-w-6xl mx-auto px-8 py-8">
-        {currentStage === "opportunity" && (
+        {viewStage === "opportunity" && (
           <OpportunityStage
             key={`opp-${draftId}`}
             draftId={draftId}
+            initialBusinessName={draft.business_name}
             initialData={draft.input_data as Record<string, string> | undefined}
             onSave={autosave}
             onAdvance={() => {
-              // Stage will advance automatically after extraction completes
+              const next = nextStageFrom("opportunity");
+              if (next) setActiveStage(next);
             }}
           />
         )}
-        {currentStage === "brief" && (
+        {viewStage === "brief" && (
           <BriefStage
             key={`brief-${draftId}-${
               draft.ai_brief ? "populated" : "empty"
@@ -226,11 +246,12 @@ export default function ProposalWorkspace() {
             initialBrief={draft.ai_brief as unknown}
             onSave={autosave}
             onAdvance={() => {
-              // Stage will advance automatically after save
+              const next = nextStageFrom("brief");
+              if (next) setActiveStage(next);
             }}
           />
         )}
-        {currentStage === "strategy" && (
+        {viewStage === "strategy" && (
           <StrategyStage
             key={`strat-${draftId}-${
               draft.input_data?.strategy ? "s" : ""
@@ -242,11 +263,12 @@ export default function ProposalWorkspace() {
             initialOutline={draft.input_data?.outline as unknown}
             onSave={autosave}
             onAdvance={() => {
-              // Stage will advance automatically after save
+              const next = nextStageFrom("strategy");
+              if (next) setActiveStage(next);
             }}
           />
         )}
-        {currentStage === "draft" && (
+        {viewStage === "draft" && (
           <DraftStage
             key={`draft-${draftId}-${
               getGeneratedContent(draft) ? "populated" : "empty"
@@ -258,11 +280,12 @@ export default function ProposalWorkspace() {
             strategy={draft.input_data?.strategy}
             onSave={autosave}
             onAdvance={() => {
-              // Stage will advance automatically after save
+              const next = nextStageFrom("draft");
+              if (next) setActiveStage(next);
             }}
           />
         )}
-        {currentStage === "review" && (
+        {viewStage === "review" && (
           <ReviewStage
             key={`review-${draftId}`}
             draftId={draftId}

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 
 interface OpportunityStageProps {
   draftId: string;
+  initialBusinessName?: string;
   initialData?: {
     business_name?: string;
     website_url?: string;
@@ -16,12 +17,13 @@ interface OpportunityStageProps {
 
 export default function OpportunityStage({
   draftId,
+  initialBusinessName,
   initialData,
   onSave,
   onAdvance,
 }: OpportunityStageProps) {
   const [companyName, setCompanyName] = useState(
-    initialData?.business_name || "",
+    initialBusinessName || initialData?.business_name || "",
   );
   const [websiteUrl, setWebsiteUrl] = useState(initialData?.website_url || "");
   const [deadline, setDeadline] = useState(initialData?.deadline || "");
