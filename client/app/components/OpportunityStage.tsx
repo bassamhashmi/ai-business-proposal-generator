@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface OpportunityStageProps {
   draftId: string;
@@ -33,11 +33,37 @@ export default function OpportunityStage({
   const [researchStatus, setResearchStatus] = useState("");
   const [error, setError] = useState("");
 
+  const onSaveRef = useRef(onSave);
+  const lastSavedRef = useRef({
+    business_name: companyName,
+    website_url: websiteUrl,
+    deadline: deadline,
+    company_context: companyContext,
+  });
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
   // Autosave field changes
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (companyName || websiteUrl || deadline || companyContext) {
-        onSave({
+      const hasAnyValue =
+        companyName || websiteUrl || deadline || companyContext;
+      const changed =
+        lastSavedRef.current.business_name !== companyName ||
+        lastSavedRef.current.website_url !== websiteUrl ||
+        lastSavedRef.current.deadline !== deadline ||
+        lastSavedRef.current.company_context !== companyContext;
+
+      if (hasAnyValue && changed) {
+        lastSavedRef.current = {
+          business_name: companyName,
+          website_url: websiteUrl,
+          deadline: deadline,
+          company_context: companyContext,
+        };
+        onSaveRef.current({
           business_name: companyName,
           website_url: websiteUrl || undefined,
           deadline: deadline || undefined,
@@ -46,7 +72,7 @@ export default function OpportunityStage({
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [companyName, websiteUrl, deadline, companyContext, onSave]);
+  }, [companyName, websiteUrl, deadline, companyContext]);
 
   const handleResearch = async () => {
     if (!companyName && !websiteUrl) return;
@@ -77,15 +103,23 @@ export default function OpportunityStage({
 
         if (jobData.status === "completed") {
           const data = jobData.result_data || {};
-          setCompanyContext(data.company_context || companyContext);
+          const finalCompanyContext = data.company_context || companyContext;
+          const finalBusinessName = data.business_name || companyName;
+          setCompanyContext(finalCompanyContext);
           if (data.business_name && !companyName) {
             setCompanyName(data.business_name);
           }
           setResearchStatus("");
           setResearching(false);
-          await onSave({
-            company_context: data.company_context || companyContext,
-            business_name: data.business_name || companyName,
+          lastSavedRef.current = {
+            business_name: finalBusinessName,
+            website_url: websiteUrl,
+            deadline: deadline,
+            company_context: finalCompanyContext,
+          };
+          await onSaveRef.current({
+            company_context: finalCompanyContext,
+            business_name: finalBusinessName,
           });
           break;
         }
@@ -110,12 +144,17 @@ export default function OpportunityStage({
       return;
     }
 
-    await onSave({
+    lastSavedRef.current = {
+      business_name: companyName,
+      website_url: websiteUrl,
+      deadline: deadline,
+      company_context: companyContext,
+    };
+    await onSaveRef.current({
       business_name: companyName,
       website_url: websiteUrl || undefined,
       deadline: deadline || undefined,
       company_context: companyContext || undefined,
-      status: "brief_ready",
     });
 
     // Kick off extraction
@@ -146,11 +185,15 @@ export default function OpportunityStage({
         if (jobData.status === "completed") {
           setResearchStatus("");
           // Save the extraction result (AI brief) to the draft
+          // and advance the stage at the same time so BriefStage
+          // mounts with ai_brief already populated
+          const savePayload: Record<string, unknown> = {
+            status: "brief_ready",
+          };
           if (jobData.result_data) {
-            await onSave({
-              ai_brief: jobData.result_data,
-            });
+            savePayload.ai_brief = jobData.result_data;
           }
+          await onSaveRef.current(savePayload);
           onAdvance();
           break;
         }

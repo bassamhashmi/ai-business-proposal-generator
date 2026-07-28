@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import WorkspaceStepper from "@/components/WorkspaceStepper";
 import AutosaveIndicator from "@/components/AutosaveIndicator";
@@ -32,6 +32,14 @@ export default function ProposalWorkspace() {
   >("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
+
+  const inputDataRef = useRef<Record<string, unknown> | undefined>(
+    draft?.input_data,
+  );
+
+  useEffect(() => {
+    inputDataRef.current = draft?.input_data;
+  }, [draft?.input_data]);
 
   // Load draft function
   const loadDraft = useCallback(async () => {
@@ -99,29 +107,27 @@ export default function ProposalWorkspace() {
       setErrorMessage("");
 
       const payload = { ...updates };
-      if (updates.input_data && draft?.input_data) {
+      if (updates.input_data && inputDataRef.current) {
         payload.input_data = {
-          ...draft.input_data,
+          ...inputDataRef.current,
           ...(updates.input_data as Record<string, unknown>),
         };
       }
 
       try {
-        await updateProposalDraft(draftId, payload);
+        const updated = await updateProposalDraft(draftId, payload);
         setSaveState("saved");
 
         // Clear saved state after 2 seconds
         setTimeout(() => setSaveState("idle"), 2000);
 
-        // Reload draft to get updated data
-        const updated = await getProposalDraft(draftId);
         setDraft(updated);
       } catch {
         setSaveState("error");
         setErrorMessage("Failed to save changes. Please try again.");
       }
     },
-    [draftId, draft],
+    [draftId],
   );
 
   const handleStageClick = (stage: StageId) => {
@@ -202,6 +208,7 @@ export default function ProposalWorkspace() {
       <div className="max-w-6xl mx-auto px-8 py-8">
         {currentStage === "opportunity" && (
           <OpportunityStage
+            key={`opp-${draftId}`}
             draftId={draftId}
             initialData={draft.input_data as Record<string, string> | undefined}
             onSave={autosave}
@@ -212,6 +219,9 @@ export default function ProposalWorkspace() {
         )}
         {currentStage === "brief" && (
           <BriefStage
+            key={`brief-${draftId}-${
+              draft.ai_brief ? "populated" : "empty"
+            }-${draft.updated_at || draft.created_at || "0"}`}
             draftId={draftId}
             initialBrief={draft.ai_brief as unknown}
             onSave={autosave}
@@ -222,6 +232,11 @@ export default function ProposalWorkspace() {
         )}
         {currentStage === "strategy" && (
           <StrategyStage
+            key={`strat-${draftId}-${
+              draft.input_data?.strategy ? "s" : ""
+            }${draft.input_data?.outline ? "o" : ""}-${
+              draft.updated_at || draft.created_at || "0"
+            }`}
             draftId={draftId}
             initialStrategy={draft.input_data?.strategy as unknown}
             initialOutline={draft.input_data?.outline as unknown}
@@ -233,6 +248,9 @@ export default function ProposalWorkspace() {
         )}
         {currentStage === "draft" && (
           <DraftStage
+            key={`draft-${draftId}-${
+              getGeneratedContent(draft) ? "populated" : "empty"
+            }-${draft.updated_at || draft.created_at || "0"}`}
             draftId={draftId}
             initialDraft={getGeneratedContent(draft)}
             businessName={draft.business_name}
@@ -246,6 +264,7 @@ export default function ProposalWorkspace() {
         )}
         {currentStage === "review" && (
           <ReviewStage
+            key={`review-${draftId}`}
             draftId={draftId}
             generatedContent={getGeneratedContent(draft)}
             businessName={draft.business_name || "Proposal"}
