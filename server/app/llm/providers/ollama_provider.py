@@ -13,16 +13,27 @@ class OllamaProvider(LLMProvider):
         self.model = model
         self.chat_url = f"{base_url}/api/chat"
 
-    async def generate_structured(self, system_prompt, user_prompt, schema, temperature=0.3, num_predict=600):
+    async def generate_structured(self, system_prompt, user_prompt, schema, temperature=0.3, num_predict=600, num_ctx=4096, top_p=None, repeat_penalty=None):
         timeout = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
         started = time.perf_counter()
+
+        options = {
+            "temperature": temperature,
+            "num_predict": num_predict,
+            "num_ctx": num_ctx,
+        }
+
+        if top_p is not None:
+            options["top_p"] = top_p
+        if repeat_penalty is not None:
+            options["repeat_penalty"] = repeat_penalty
+
         async with httpx.AsyncClient(timeout=timeout) as client:
             log_event(
                 logger,
                 "llm_structured_generation_started",
                 model=self.model,
-                temperature=temperature,
-                num_predict=num_predict,
+                options=options,
             )
             response = await client.post(self.chat_url, json={
                 "model": self.model,
@@ -34,11 +45,7 @@ class OllamaProvider(LLMProvider):
                 "stream": False,
                 "think": False,
                 "keep_alive": "30m",
-                "options": {
-                    "temperature": temperature,
-                    "num_predict": num_predict,
-                    "num_ctx": 4096,
-                },
+                "options": options,
             })
             response.raise_for_status()
             raw = response.json()["message"]["content"]
